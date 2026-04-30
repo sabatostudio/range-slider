@@ -309,7 +309,9 @@ function useChoreography(
   const b = useMotionValue(80);
 
   useEffect(() => {
-    const sync = () => setValue([Math.round(a.get()), Math.round(b.get())]);
+    // Pass float values through so thumb + metaball positions animate at
+    // sub-pixel resolution. Display code rounds for the visible numbers.
+    const sync = () => setValue([a.get(), b.get()]);
     const ua = a.on("change", sync);
     const ub = b.on("change", sync);
     return () => {
@@ -369,9 +371,11 @@ function useChoreography(
     if (token.cancelled) return;
     await sleep(440);
 
-    // Cross-axis split: spring with mild bounce reads as elastic release.
+    // Cross-axis split: same critically-damped character as the merge
+    // collapse, duration scaled to the longer distance so the perceived
+    // speed (and cadence) matches.
     await safeAwait(
-      animate(a, 20, { type: "spring", duration: 0.6, bounce: 0.2 }),
+      animate(a, 20, { type: "spring", duration: 0.85, bounce: 0 }),
     );
     if (token.cancelled) return;
     await sleep(400);
@@ -487,13 +491,30 @@ function pickMime(): { mime: string; ext: "mp4" | "webm" } {
   return { mime: "", ext: "webm" };
 }
 
+/**
+ * Record a square crop of the host element to MP4 with strict constant
+ * framerate.
+ *
+ * Why CFR matters: social platform encoders (LinkedIn, X, IG) assume the
+ * input is CFR. A `MediaRecorder` driven by `canvas.captureStream(60)` and
+ * `requestVideoFrameCallback` produces a *variable* framerate file because
+ * frames emit when they happen, not on a fixed clock. The result plays fine
+ * locally but stutters after a re-encode.
+ *
+ * The fix: drive the canvas with a manual frame clock at exactly TARGET_FPS
+ * via `setTimeout` corrected against `performance.now()`, and emit frames
+ * with `track.requestFrame()` from a `captureStream(0)` (manual mode). Every
+ * output frame has a clean 1/TARGET_FPS timestamp.
+ */
 async function recordHostElement(host: HTMLElement, opts: RecordOpts) {
   const {
     run,
     cropSize = 900,
-    outSize = 2160,
-    bitrate = 14_000_000,
+    outSize = 1080,
+    bitrate = 12_000_000,
   } = opts;
+  const TARGET_FPS = 30; // matches social platforms' feed re-encode target
+
   if (!navigator.mediaDevices?.getDisplayMedia) {
     alert("Screen recording not supported in this browser.");
     return;
@@ -513,27 +534,17 @@ async function recordHostElement(host: HTMLElement, opts: RecordOpts) {
   video.muted = true;
   video.playsInline = true;
   await video.play();
-
-  // Resolve source crop once the video has dimensions
   await new Promise<void>((resolve) => {
     if (video.videoWidth > 0) return resolve();
     video.onloadedmetadata = () => resolve();
   });
 
-  // Wait for Chrome's "Sharing this tab" notification bar to finish sliding
-  // down — otherwise the first ~300ms of the recording captures the page
-  // shifting as the viewport resizes. 700ms covers the slide animation
-  // plus a safety margin.
+  // Wait for Chrome's "Sharing this tab" bar to finish sliding in.
   await new Promise((r) => setTimeout(r, 700));
 
-  // Derive the CSS-pixel→video-pixel scale from the actual stream dimensions.
-  // Chrome's tab capture may downscale or cap resolution (e.g. 1920 max),
-  // so a fixed `dpr` multiplier produces an off-center crop. Using the real
-  // video size keeps the crop locked to the host element.
+  // Compute the host-centered square crop in video-pixel coordinates.
   const scaleX = video.videoWidth / window.innerWidth;
   const scaleY = video.videoHeight / window.innerHeight;
-  // Square crop centered on the host element (the slider is centered inside it).
-  // Measured AFTER the chrome settles.
   const rect = host.getBoundingClientRect();
   const cx = rect.left + rect.width / 2;
   const cy = rect.top + rect.height / 2;
@@ -542,13 +553,10 @@ async function recordHostElement(host: HTMLElement, opts: RecordOpts) {
   const sw = cropSize * scaleX;
   const sh = cropSize * scaleY;
 
-  const outW = outSize;
-  const outH = outSize;
-
   const canvas = document.createElement("canvas");
-  canvas.width = outW;
-  canvas.height = outH;
-  const ctx = canvas.getContext("2d", { alpha: false, desynchronized: true });
+  canvas.width = outSize;
+  canvas.height = outSize;
+  const ctx = canvas.getContext("2d", { alpha: false });
   if (!ctx) {
     displayStream.getTracks().forEach((t) => t.stop());
     return;
@@ -556,24 +564,16 @@ async function recordHostElement(host: HTMLElement, opts: RecordOpts) {
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
 
-  // Use requestVideoFrameCallback when available — it ticks per video frame
-  // (no wasted draws if the stream is below 60 fps) and is more efficient.
-  let stopped = false;
-  type RVFCVideo = HTMLVideoElement & {
-    requestVideoFrameCallback?: (cb: () => void) => number;
-  };
-  const v = video as RVFCVideo;
-  const draw = () => {
-    if (stopped) return;
-    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, outW, outH);
-    if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(draw);
-    else requestAnimationFrame(draw);
-  };
-  if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(draw);
-  else requestAnimationFrame(draw);
+  // Manual-mode capture: we control frame emission via requestFrame().
+  type ManualTrack = MediaStreamTrack & { requestFrame?: () => void };
+  const canvasStream = (
+    canvas as HTMLCanvasElement & {
+      captureStream: (frameRequestRate?: number) => MediaStream;
+    }
+  ).captureStream(0);
+  const track = canvasStream.getVideoTracks()[0] as ManualTrack;
 
   const { mime, ext } = pickMime();
-  const canvasStream = canvas.captureStream(60);
   const rec = new MediaRecorder(canvasStream, {
     ...(mime ? { mimeType: mime } : {}),
     videoBitsPerSecond: bitrate,
@@ -581,18 +581,41 @@ async function recordHostElement(host: HTMLElement, opts: RecordOpts) {
   const chunks: Blob[] = [];
   rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
   const stopPromise = new Promise<void>((r) => (rec.onstop = () => r()));
-  // Prime: paint the first frame BEFORE rec.start() so byte 0 of the video
-  // is the initial state.
-  ctx.drawImage(video, sx, sy, sw, sh, 0, 0, outW, outH);
+
+  // Prime: paint and emit the first frame before MediaRecorder starts so
+  // byte 0 of the encoded stream is the initial state of the prototype.
+  ctx.drawImage(video, sx, sy, sw, sh, 0, 0, outSize, outSize);
+
+  // Drift-free frame clock: each tick paints the latest video frame and
+  // requests one canvas frame. Timestamps land at exact 1/TARGET_FPS spacing.
+  const frameInterval = 1000 / TARGET_FPS;
+  let stopped = false;
+  let nextTick = performance.now();
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const tick = () => {
+    if (stopped) return;
+    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, outSize, outSize);
+    track.requestFrame?.();
+    nextTick += frameInterval;
+    const delay = Math.max(0, nextTick - performance.now());
+    timer = setTimeout(tick, delay);
+  };
 
   rec.start();
+  // Start the clock immediately after rec.start() so the recorder receives
+  // a steady stream from frame 0.
+  nextTick = performance.now() + frameInterval;
+  timer = setTimeout(tick, frameInterval);
 
-  // Run exactly one cycle — start frame == end frame, perfect loop.
+  // One cycle — start frame == end frame for a seamless loop.
   await run();
 
+  // Stop the clock before stopping the recorder so no straggler frames slip
+  // in with mistimed timestamps.
+  stopped = true;
+  if (timer) clearTimeout(timer);
   rec.stop();
   await stopPromise;
-  stopped = true;
   displayStream.getTracks().forEach((t) => t.stop());
   canvasStream.getTracks().forEach((t) => t.stop());
 
@@ -811,7 +834,9 @@ export function PriceRangeV2() {
       await recordHostElement(hostRef.current, {
         cropSize: 692,
         outSize: 1080,
-        bitrate: 40_000_000,
+        // 12 Mbps at 30fps is well above what social platforms keep, leaves
+        // them clean source material to re-encode without heroic decisions.
+        bitrate: 12_000_000,
         run: async () => {
           // brief hold on the start frame so wrap-around feels intentional
           await dwell(350);
@@ -831,11 +856,14 @@ export function PriceRangeV2() {
 
   const [a, b] = value;
   const merged = b - a <= MERGE_THRESHOLD;
-  const collapsed = a === b;
+  // Float-precise positions for smooth visuals, rounded ints for displayed text.
+  const ra = Math.round(a);
+  const rb = Math.round(b);
+  const collapsed = ra === rb;
   const rawMidFrac = ((a + b) / 2 - MIN) / (MAX - MIN);
   const midPct =
     (HALF_THUMB_FRAC + (1 - 2 * HALF_THUMB_FRAC) * rawMidFrac) * 100;
-  const labelText = collapsed ? String(a) : `${a}-${b}`;
+  const labelText = collapsed ? String(ra) : `${ra}-${rb}`;
 
   useEffect(() => {
     if (activeIndex === null) return;
@@ -1022,7 +1050,7 @@ export function PriceRangeV2() {
                     }}
                     className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 text-white text-4xl tabular-nums pointer-events-none whitespace-nowrap leading-none"
                   >
-                    <AnimatedNumber value={value[i]} variant="Roll" />
+                    <AnimatedNumber value={Math.round(value[i])} variant="Roll" />
                   </motion.span>
                 </SliderPrimitive.Thumb>
               );
