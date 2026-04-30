@@ -278,17 +278,8 @@ function CustomCursor({
   );
 }
 
-const CURSOR_OPTIONS: { value: CursorVariant; label: string }[] = [
-  { value: "trail", label: "Trail" },
-  { value: "ring", label: "Ring" },
-  { value: "crosshair", label: "Crosshair" },
-  { value: "halo", label: "Halo" },
-  { value: "off", label: "Off" },
-];
-
 type CancelToken = { cancelled: boolean };
 
-const EASE_OUT = [0.16, 1, 0.3, 1] as const;
 // ease-in-out-cubic — for on-screen movement between rest states
 const EASE_IN_OUT = [0.645, 0.045, 0.355, 1] as const;
 
@@ -733,36 +724,11 @@ function SoloToolbar({
   );
 }
 
-function CursorPicker({
-  value,
-  onChange,
-}: {
-  value: CursorVariant;
-  onChange: (v: CursorVariant) => void;
-}) {
-  return (
-    <label className="absolute top-6 right-6 z-50 flex items-center gap-2 text-white/50 text-[11px] uppercase tracking-[0.12em] font-mono">
-      <span className="select-none">Cursor</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value as CursorVariant)}
-        className="appearance-none bg-transparent border border-white/15 hover:border-white/35 focus:border-white/60 focus:outline-none rounded-full px-3 py-1 text-white/80 text-[11px] tracking-[0.08em] cursor-pointer transition-colors"
-        style={{ colorScheme: "dark" }}
-      >
-        {CURSOR_OPTIONS.map((o) => (
-          <option key={o.value} value={o.value} className="bg-black text-white">
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
 
 export function PriceRangeV2() {
   const [value, setValue] = useState<number[]>([20, 80]);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
-  const [cursor, setCursor] = useState<CursorVariant>("trail");
+  const [cursor] = useState<CursorVariant>("trail");
   const [autoplay, setAutoplay] = useState(false);
   const [recording, setRecording] = useState(false);
   const reduce = useReducedMotion();
