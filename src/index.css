@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: "MD UI";
+  src: url("./assets/fonts/MDUI-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "GT Mechanik Mono";
+  src: url("./assets/fonts/GT-Mechanik-Mono-Thin-Trial.otf") format("opentype");
+  font-weight: 100;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme {
+  --color-canvas: #0a0a0a;
+  --color-surface: #141414;
+  --color-ink: #ededed;
+  --color-muted: #737373;
+  --color-accent: #f5f5f5;
+  --font-sans: "MD UI", system-ui, -apple-system, sans-serif;
+  --font-mechanik-mono: "GT Mechanik Mono", ui-monospace, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background-color: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
