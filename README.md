@@ -1,73 +1,70 @@
-# React + TypeScript + Vite
+# TINY UI · 001 — Range Slider
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A range slider where the two values can become one.
 
-Currently, two official plugins are available:
+The smallest interaction in a filter UI is the moment two thumbs collide. Most sliders just stop. This one merges, translates, and splits — three states, one continuous motion.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+→ [sabatostudio/range-slider](https://github.com/sabatostudio/range-slider)
 
-## React Compiler
+## What's inside
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+**Metaball Merge** — when the two values get close, the pills fuse into one through an SVG goo filter.
 
-## Expanding the ESLint configuration
+**Collapse on Cross** — drag a thumb past the other and the range snaps shut at the merge point.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+**Translate as One** — while merged mid-drag, the single value follows the cursor as one unit.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+**Cross-axis Split** — pull the merged pill perpendicular to the track to break the range back open. Trailing thumb stays at the merge point, leading thumb continues with the cursor.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+**Choreographed Autoplay** — a self-running demo that walks through the full state machine, ending exactly where it started so the loop has no seam.
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+**4K Record-to-File** — built-in recorder captures a 1080² loop at 60 fps, 40 Mbps H.264, ready to upload to LinkedIn / X / Instagram without further re-encoding.
+
+## Stack
+
+- **React 19** + **TypeScript**
+- **Motion** (`motion/react`) for animations and choreography
+- **Radix Slider** primitive, customized
+- **Tailwind CSS v4**
+- **Vite**
+
+## Run locally
+
+```bash
+pnpm install
+pnpm dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Then visit:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+- `/` — gallery of all prototypes
+- `/p/price-range-v2` — lab view (with breadcrumb)
+- `/solo/price-range-v2` — solo showcase view (no chrome, recordable)
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## Record a loop
+
+1. Open `/solo/price-range-v2`
+2. Click the record button (bottom-right, the red dot)
+3. Choose "This tab" in the share-screen prompt
+4. The choreography plays twice; the file downloads when it's done
+5. Drop the resulting `.mp4` straight into LinkedIn / X / IG
+
+## Why a range slider
+
+Filter UIs ship every day with a slider that has two thumbs and one rule: don't let them touch. So I asked: what happens if they do?
+
+The answer turned into 50 hours of micro-decisions about merge thresholds, gesture intent, spring damping, and metaball blur radii. None of those decisions are visible. They just make the thing feel right.
+
+## Series
+
+This is the first in a series of small interaction studies. Each one takes a UI element nobody thinks about and treats it like the only thing that matters.
+
+→ Next: TINY UI · 002
+
+## Built with
+
+Figma + Claude Code. The tools changed. The taste didn't.
+
+—
+
+Made by [Sabato](https://www.linkedin.com/in/sabatostudio).
