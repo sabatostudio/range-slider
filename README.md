@@ -1,5 +1,3 @@
-# [TINY UI · 001]
-
 ### ↳ Range Slider
 
 ¹ **Metaball Merge** — values meet and fuse into one
